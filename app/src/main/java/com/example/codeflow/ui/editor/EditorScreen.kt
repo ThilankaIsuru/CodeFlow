@@ -34,31 +34,40 @@ import com.example.codeflow.ui.components.SidebarDrawer
 import com.example.codeflow.ui.components.TopBar
 import com.example.codeflow.ui.dialogs.OpenFileDialog
 import com.example.codeflow.ui.dialogs.SaveAsDialog
+import com.example.codeflow.ui.dialogs.SettingsDialog
 import com.example.codeflow.ui.theme.CodeFlowTheme
 import com.example.codeflow.ui.versioning.DiffViewerScreen
 import com.example.codeflow.ui.versioning.VersionHistoryDialog
 import kotlinx.coroutines.launch
 
+import android.content.Intent
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+
 /**
- * CodeFlow Editor Screen bound to [EditorViewModel].
- * Integrates Android Native Storage Access Framework (SAF) document pickers for Save As and Open File,
- * Sidebar Drawer, Top Bar, Search & Replace Bar, Code Editor Area, Markdown Preview, Keyboard Toolbar,
- * crash recovery dialog, Version History sheet, and Diff Viewer screen.
+ * Primary Editor Screen composable connecting UI state with ViewModel.
  */
 @Composable
 fun EditorScreen(
     viewModel: EditorViewModel? = null,
     modifier: Modifier = Modifier
 ) {
-    val uiState by if (viewModel != null) {
-        viewModel.uiState.collectAsState()
-    } else {
-        remember { mutableStateOf(EditorUiState()) }
-    }
-
+    val uiState by viewModel?.uiState?.collectAsState() ?: remember { mutableStateOf(EditorUiState()) }
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    // Clear focus & hide soft keyboard when drawer or modals open
+    LaunchedEffect(drawerState.isOpen, uiState.isSettingsOpen, uiState.isVersionHistoryOpen) {
+        if (drawerState.isOpen || uiState.isSettingsOpen || uiState.isVersionHistoryOpen) {
+            focusManager.clearFocus()
+            keyboardController?.hide()
+        }
+    }
 
     var isSaveAsDialogOpen by remember { mutableStateOf(false) }
     var isOpenFileDialogOpen by remember { mutableStateOf(false) }
@@ -68,6 +77,12 @@ fun EditorScreen(
         contract = ActivityResultContracts.CreateDocument("text/*")
     ) { uri ->
         uri?.let {
+            val takeFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            try {
+                context.contentResolver.takePersistableUriPermission(it, takeFlags)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
             viewModel?.saveFileToUri(it.toString())
         }
     }
@@ -76,6 +91,12 @@ fun EditorScreen(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
         uri?.let {
+            val takeFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            try {
+                context.contentResolver.takePersistableUriPermission(it, takeFlags)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
             viewModel?.openFileFromUri(it.toString())
         }
     }
@@ -90,6 +111,14 @@ fun EditorScreen(
         uiState.statusMessage?.let { msg ->
             snackbarHostState.showSnackbar(msg)
             viewModel?.clearStatusMessage()
+        }
+    }
+
+    // Auto-trigger System File Picker if URI permission ever fails on real device
+    LaunchedEffect(uiState.shouldTriggerOpenPicker) {
+        if (uiState.shouldTriggerOpenPicker) {
+            viewModel?.clearTriggerOpenPicker()
+            openDocumentLauncher.launch(arrayOf("*/*"))
         }
     }
 
@@ -151,7 +180,19 @@ fun EditorScreen(
         )
     }
 
-    // 4. Version History Modal Bottom Sheet
+    // 4. CodeFlow Settings Dialog
+    if (uiState.isSettingsOpen) {
+        SettingsDialog(
+            uiState = uiState,
+            onFontSizeChange = { size -> viewModel?.setFontSize(size) },
+            onToggleWordWrap = { viewModel?.toggleWordWrap() },
+            onToggleLineNumbers = { viewModel?.toggleLineNumbers() },
+            onToggleEncoding = { viewModel?.toggleEncoding() },
+            onDismissRequest = { viewModel?.closeSettings() }
+        )
+    }
+
+    // 5. Version History Modal Bottom Sheet
     if (uiState.isVersionHistoryOpen) {
         VersionHistoryDialog(
             fileName = uiState.fileName,
@@ -163,7 +204,7 @@ fun EditorScreen(
         )
     }
 
-    // 5. Line-by-Line Diff Viewer Overlay
+    // 6. Line-by-Line Diff Viewer Overlay
     if (uiState.isDiffViewerOpen && uiState.diffOldText != null && uiState.diffNewText != null) {
         DiffViewerScreen(
             versionName = uiState.selectedVersionName ?: "Historical Version",
@@ -201,7 +242,7 @@ fun EditorScreen(
                 onSettingsClick = {
                     coroutineScope.launch {
                         drawerState.close()
-                        snackbarHostState.showSnackbar("Settings opened")
+                        viewModel?.toggleSettings()
                     }
                 }
             )
@@ -273,7 +314,11 @@ fun EditorScreen(
                             },
                             isReadOnly = uiState.isReadOnly,
                             wordWrap = uiState.wordWrap,
-                            searchQuery = uiState.searchQuery
+                            searchQuery = uiState.searchQuery,
+                            fileName = uiState.fileName,
+                            fontSizeSp = uiState.fontSizeSp,
+                            showLineNumbers = uiState.showLineNumbers,
+                            isDrawerOpen = drawerState.isOpen
                         )
                     }
                 }

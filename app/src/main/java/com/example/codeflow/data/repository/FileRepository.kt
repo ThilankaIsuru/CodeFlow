@@ -40,8 +40,14 @@ class FileRepository(
         readUriOrFile(path, encodingName).map { it.first }
     }
 
+    private fun getMirrorFile(fileName: String): File {
+        val dir = File(context.filesDir, "user_documents")
+        if (!dir.exists()) dir.mkdirs()
+        return File(dir, fileName)
+    }
+
     /**
-     * Reads text content and display name from file path or content:// URI.
+     * Reads text content and display name from file path or content:// URI with local mirror fallback.
      */
     suspend fun readUriOrFile(
         pathOrUri: String,
@@ -51,10 +57,28 @@ class FileRepository(
             val charset = getCharset(encodingName)
             if (pathOrUri.startsWith("content://")) {
                 val uri = android.net.Uri.parse(pathOrUri)
-                val content = context.contentResolver.openInputStream(uri)?.use { stream ->
-                    stream.readBytes().toString(charset)
-                } ?: throw java.io.FileNotFoundException("Could not open input stream for URI: $pathOrUri")
-                val displayName = getUriDisplayName(uri) ?: "OpenedDocument.txt"
+                val displayName = getUriDisplayName(uri) ?: getFileNameFromUriPath(pathOrUri) ?: "OpenedDocument.txt"
+                val mirror = getMirrorFile(displayName)
+
+                try {
+                    val takeFlags = android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                    context.contentResolver.takePersistableUriPermission(uri, takeFlags)
+                } catch (_: Exception) {}
+
+                val content = try {
+                    val readText = context.contentResolver.openInputStream(uri)?.use { stream ->
+                        stream.readBytes().toString(charset)
+                    } ?: throw java.io.FileNotFoundException("Could not open input stream for URI: $pathOrUri")
+
+                    try { mirror.writeText(readText, charset) } catch (_: Exception) {}
+                    readText
+                } catch (se: Throwable) {
+                    if (mirror.exists()) {
+                        mirror.readText(charset)
+                    } else {
+                        throw IllegalStateException("URI Access Expired. Please re-open file using system file picker.")
+                    }
+                }
                 Pair(content, displayName)
             } else {
                 val file = File(pathOrUri)
@@ -79,7 +103,7 @@ class FileRepository(
     }
 
     /**
-     * Writes text content to local file or content:// URI.
+     * Writes text content to local file or content:// URI with local mirror sync.
      */
     suspend fun writeUriOrFile(
         pathOrUri: String,
@@ -95,11 +119,24 @@ class FileRepository(
             val charset = getCharset(encodingName)
             if (pathOrUri.startsWith("content://")) {
                 val uri = android.net.Uri.parse(pathOrUri)
-                context.contentResolver.openOutputStream(uri, "wt")?.use { stream ->
-                    stream.write(content.toByteArray(charset))
-                } ?: throw java.io.FileNotFoundException("Could not open output stream for URI: $pathOrUri")
-
                 val displayName = getUriDisplayName(uri) ?: "Document.txt"
+                val mirror = getMirrorFile(displayName)
+
+                try {
+                    val takeFlags = android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                    context.contentResolver.takePersistableUriPermission(uri, takeFlags)
+                } catch (_: Exception) {}
+
+                try {
+                    context.contentResolver.openOutputStream(uri, "wt")?.use { stream ->
+                        stream.write(content.toByteArray(charset))
+                    } ?: throw java.io.FileNotFoundException("Could not open output stream for URI: $pathOrUri")
+                } catch (se: SecurityException) {
+                    mirror.writeText(content, charset)
+                }
+
+                try { mirror.writeText(content, charset) } catch (_: Exception) {}
+
                 trackFile(path = pathOrUri, fileName = displayName, encodingName = encodingName)
             } else {
                 val file = File(pathOrUri)
@@ -115,17 +152,35 @@ class FileRepository(
     }
 
     private fun getUriDisplayName(uri: android.net.Uri): String? {
-        var name: String? = null
-        val cursor = context.contentResolver.query(uri, null, null, null, null)
-        cursor?.use {
-            if (it.moveToFirst()) {
-                val nameIndex = it.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
-                if (nameIndex != -1) {
-                    name = it.getString(nameIndex)
+        return try {
+            var name: String? = null
+            val cursor = context.contentResolver.query(uri, null, null, null, null)
+            cursor?.use {
+                if (it.moveToFirst()) {
+                    val nameIndex = it.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                    if (nameIndex != -1) {
+                        name = it.getString(nameIndex)
+                    }
                 }
             }
+            name
+        } catch (_: Exception) {
+            null
         }
-        return name
+    }
+
+    private fun getFileNameFromUriPath(uriString: String): String? {
+        return try {
+            val uri = android.net.Uri.parse(uriString)
+            val lastSegment = uri.lastPathSegment
+            if (lastSegment != null && lastSegment.contains("/")) {
+                lastSegment.substringAfterLast("/")
+            } else {
+                lastSegment
+            }
+        } catch (_: Exception) {
+            null
+        }
     }
 
     /**

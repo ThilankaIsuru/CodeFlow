@@ -20,14 +20,7 @@ data class EditorUiState(
     val fileName: String = "Untitled.kt",
     val absolutePath: String? = null,
     val activeFileId: Long? = null,
-    val content: TextFieldValue = TextFieldValue(
-        "// Welcome to CodeFlow Mobile Text Editor\n" +
-        "// Built with Jetpack Compose & Clean Architecture\n\n" +
-        "fun main() {\n" +
-        "    val appName = \"CodeFlow\"\n" +
-        "    println(\"Hello, \$appName!\")\n" +
-        "}"
-    ),
+    val content: TextFieldValue = TextFieldValue(""),
     val isModified: Boolean = false,
     val isReadOnly: Boolean = false,
     val encoding: String = "UTF-8",
@@ -41,6 +34,7 @@ data class EditorUiState(
     val hasRecoveryBackup: Boolean = false,
     val statusMessage: String? = null,
     val recentFiles: List<RecentFileItem> = emptyList(),
+    val shouldTriggerOpenPicker: Boolean = false,
 
     // Settings & Preference States
     val fontSizeSp: Int = 14,

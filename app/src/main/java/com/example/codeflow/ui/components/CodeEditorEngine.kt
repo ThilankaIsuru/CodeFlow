@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -21,6 +20,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
@@ -29,10 +29,10 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.codeflow.ui.editor.KotlinSyntaxHighlighter
+import com.example.codeflow.ui.editor.CodeSyntaxHighlighter
 
 /**
- * Editor Engine Composable unifying dynamic Kotlin syntax highlighting
+ * Editor Engine Composable unifying dynamic Kotlin and Markdown syntax highlighting
  * with a synced line numbering gutter that correctly handles wrapped lines.
  */
 @Composable
@@ -42,13 +42,17 @@ fun CodeEditorEngine(
     isReadOnly: Boolean,
     wordWrap: Boolean,
     searchQuery: String = "",
+    fileName: String = "Untitled.kt",
+    fontSizeSp: Int = 14,
+    showLineNumbers: Boolean = true,
+    isDrawerOpen: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val verticalScrollState = rememberScrollState()
     val horizontalScrollState = rememberScrollState()
 
     var textLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
-    val highlighter = remember(searchQuery) { KotlinSyntaxHighlighter(searchQuery) }
+    val highlighter = remember(fileName, searchQuery) { CodeSyntaxHighlighter(fileName, searchQuery) }
 
     // Calculate line numbers per visual row based on TextLayoutResult
     val lineLabels = remember(textLayoutResult, content.text) {
@@ -70,15 +74,15 @@ fun CodeEditorEngine(
                     labels.add(logicalLineIndex.toString())
                     logicalLineIndex++
                 } else {
-                    labels.add("") // Wrapped line continuation
+                    labels.add("") // Indent indicator for soft-wrapped text line
                 }
             }
             labels
         }
     }
 
-    val fontSize = 14.sp
-    val lineHeight = 20.sp
+    val fontSize = fontSizeSp.sp
+    val lineHeight = (fontSizeSp * 1.43).sp
 
     Row(
         modifier = modifier
@@ -86,33 +90,35 @@ fun CodeEditorEngine(
             .background(MaterialTheme.colorScheme.surface)
     ) {
         // 1. Line Numbering Gutter (Synced with editor scroll)
-        Box(
-            modifier = Modifier
-                .fillMaxHeight()
-                .background(MaterialTheme.colorScheme.surfaceContainerLow)
-                .padding(vertical = 12.dp, horizontal = 8.dp)
-                .verticalScroll(verticalScrollState)
-        ) {
-            Text(
-                text = lineLabels.joinToString("\n"),
-                style = TextStyle(
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = fontSize,
-                    lineHeight = lineHeight,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                    textAlign = TextAlign.End
-                ),
-                modifier = Modifier.width(36.dp)
+        if (showLineNumbers) {
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                    .padding(vertical = 12.dp, horizontal = 8.dp)
+                    .verticalScroll(verticalScrollState)
+            ) {
+                Text(
+                    text = lineLabels.joinToString("\n"),
+                    style = TextStyle(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = fontSize,
+                        lineHeight = lineHeight,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                        textAlign = TextAlign.End
+                    ),
+                    modifier = Modifier.width(36.dp)
+                )
+            }
+
+            // Solid Vertical Separator Border
+            Spacer(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .width(1.dp)
+                    .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
             )
         }
-
-        // Solid Vertical Separator Border
-        Spacer(
-            modifier = Modifier
-                .fillMaxHeight()
-                .width(1.dp)
-                .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-        )
 
         // 2. Main Editor Canvas with Syntax Highlighting & Layout Tracker
         Box(
@@ -125,6 +131,17 @@ fun CodeEditorEngine(
                     if (!wordWrap) Modifier.horizontalScroll(horizontalScrollState) else Modifier
                 )
         ) {
+            if (content.text.isEmpty()) {
+                Text(
+                    text = "Start typing...",
+                    style = TextStyle(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = fontSize,
+                        lineHeight = lineHeight,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f)
+                    )
+                )
+            }
             BasicTextField(
                 value = content,
                 onValueChange = { if (!isReadOnly) onContentChange(it) },
@@ -137,12 +154,8 @@ fun CodeEditorEngine(
                 ),
                 visualTransformation = highlighter,
                 onTextLayout = { textLayoutResult = it },
-                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .then(
-                        if (wordWrap) Modifier.fillMaxWidth() else Modifier
-                    )
+                cursorBrush = if (isDrawerOpen) SolidColor(Color.Transparent) else SolidColor(MaterialTheme.colorScheme.primary),
+                modifier = Modifier.fillMaxSize()
             )
         }
     }

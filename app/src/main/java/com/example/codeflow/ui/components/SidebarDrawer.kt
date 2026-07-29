@@ -3,6 +3,7 @@ package com.example.codeflow.ui.components
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -38,6 +39,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -150,36 +152,23 @@ fun SidebarDrawer(
  */
 @Composable
 private fun DrawerHeader() {
-    val gradientBrush = Brush.linearGradient(
-        colors = listOf(
-            MaterialTheme.colorScheme.primaryContainer,
-            MaterialTheme.colorScheme.tertiaryContainer
-        )
-    )
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val secondaryColor = MaterialTheme.colorScheme.tertiary
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .background(brush = gradientBrush)
-            .padding(24.dp)
+            .padding(horizontal = 20.dp, vertical = 24.dp)
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Custom Quill & Code Bracket Canvas Logo
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(MaterialTheme.colorScheme.primary)
-                    .padding(8.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                CodeQuillLogoGraphic(
-                    color = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier.size(32.dp)
-                )
-            }
+            // Stylized Modern Sidebar Vector Logo (Theme-aware & Borderless)
+            SidebarLogoGraphic(
+                primaryColor = primaryColor,
+                secondaryColor = secondaryColor,
+                modifier = Modifier.size(52.dp)
+            )
 
             Spacer(modifier = Modifier.width(16.dp))
 
@@ -188,12 +177,14 @@ private fun DrawerHeader() {
                     text = "CodeFlow",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.ExtraBold,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                    color = MaterialTheme.colorScheme.onSurface,
+                    letterSpacing = 0.5.sp
                 )
                 Text(
                     text = "Delta Versioned Editor",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.primary
                 )
             }
         }
@@ -201,51 +192,64 @@ private fun DrawerHeader() {
 }
 
 /**
- * Stylized Canvas Graphic representing code brackets `{ }` with a quill stroke.
+ * Stylized, theme-aware Canvas Graphic representing code brackets and flow waves.
  */
 @Composable
-private fun CodeQuillLogoGraphic(
-    color: Color,
+private fun SidebarLogoGraphic(
+    primaryColor: Color,
+    secondaryColor: Color,
     modifier: Modifier = Modifier
 ) {
     Canvas(modifier = modifier) {
-        val strokeWidth = 3.dp.toPx()
+        val strokeWidth = 3.5.dp.toPx()
         val w = size.width
         val h = size.height
 
         // Left Code Bracket `<`
         val leftPath = Path().apply {
-            moveTo(w * 0.35f, h * 0.25f)
-            lineTo(w * 0.15f, h * 0.50f)
-            lineTo(w * 0.35f, h * 0.75f)
+            moveTo(w * 0.32f, h * 0.28f)
+            lineTo(w * 0.12f, h * 0.50f)
+            lineTo(w * 0.32f, h * 0.72f)
         }
         drawPath(
             path = leftPath,
-            color = color,
-            style = Stroke(width = strokeWidth)
+            color = primaryColor,
+            style = Stroke(width = strokeWidth, cap = androidx.compose.ui.graphics.StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round)
         )
 
         // Right Code Bracket `>`
         val rightPath = Path().apply {
-            moveTo(w * 0.65f, h * 0.25f)
-            lineTo(w * 0.85f, h * 0.50f)
-            lineTo(w * 0.65f, h * 0.75f)
+            moveTo(w * 0.68f, h * 0.28f)
+            lineTo(w * 0.88f, h * 0.50f)
+            lineTo(w * 0.68f, h * 0.72f)
         }
         drawPath(
             path = rightPath,
-            color = color,
-            style = Stroke(width = strokeWidth)
+            color = primaryColor,
+            style = Stroke(width = strokeWidth, cap = androidx.compose.ui.graphics.StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round)
         )
 
-        // Quill Pen / Slash Line `/`
-        val quillPath = Path().apply {
-            moveTo(w * 0.60f, h * 0.20f)
-            lineTo(w * 0.40f, h * 0.80f)
+        // Center Flow Slash `/`
+        val flowPath = Path().apply {
+            moveTo(w * 0.62f, h * 0.20f)
+            lineTo(w * 0.38f, h * 0.80f)
         }
         drawPath(
-            path = quillPath,
-            color = color.copy(alpha = 0.9f),
-            style = Stroke(width = strokeWidth + 1.dp.toPx())
+            path = flowPath,
+            color = secondaryColor,
+            style = Stroke(width = strokeWidth + 0.5.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round)
+        )
+
+        // Accent Node Dots
+        drawCircle(
+            color = primaryColor,
+            radius = 3.dp.toPx(),
+            center = androidx.compose.ui.geometry.Offset(w * 0.62f, h * 0.20f)
+        )
+        drawCircle(
+            color = secondaryColor,
+            radius = 3.dp.toPx(),
+            center = androidx.compose.ui.geometry.Offset(w * 0.38f, h * 0.80f)
         )
     }
 }

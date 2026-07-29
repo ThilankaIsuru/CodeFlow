@@ -6,7 +6,7 @@ import androidx.compose.ui.text.input.TextFieldValue
 
 /**
  * Main Code Editor Area wrapper delegating to [CodeEditorEngine]
- * for real-time syntax highlighting, search term highlighting, and synced line numbering.
+ * for real-time Kotlin and Markdown syntax highlighting, search term highlighting, font scaling, and synced line numbering.
  */
 @Composable
 fun CodeEditorArea(
@@ -15,6 +15,10 @@ fun CodeEditorArea(
     isReadOnly: Boolean,
     wordWrap: Boolean,
     searchQuery: String = "",
+    fileName: String = "Untitled.kt",
+    fontSizeSp: Int = 14,
+    showLineNumbers: Boolean = true,
+    isDrawerOpen: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     CodeEditorEngine(
@@ -23,6 +27,10 @@ fun CodeEditorArea(
         isReadOnly = isReadOnly,
         wordWrap = wordWrap,
         searchQuery = searchQuery,
+        fileName = fileName,
+        fontSizeSp = fontSizeSp,
+        showLineNumbers = showLineNumbers,
+        isDrawerOpen = isDrawerOpen,
         modifier = modifier
     )
 }

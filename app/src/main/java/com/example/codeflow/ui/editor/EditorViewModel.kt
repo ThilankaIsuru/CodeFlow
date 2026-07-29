@@ -157,7 +157,7 @@ class EditorViewModel(
                 fileName = "Untitled.kt",
                 absolutePath = null,
                 activeFileId = null,
-                content = TextFieldValue("// New Kotlin File\n"),
+                content = TextFieldValue(""),
                 isModified = false,
                 canUndo = false,
                 canRedo = false,
@@ -167,30 +167,33 @@ class EditorViewModel(
         }
     }
 
+    fun clearTriggerOpenPicker() {
+        _uiState.update { it.copy(shouldTriggerOpenPicker = false) }
+    }
+
     fun openFile(path: String) {
         viewModelScope.launch(Dispatchers.IO) {
             val encoding = _uiState.value.encoding
-            val result = repository.readFile(path, encoding)
-            result.onSuccess { contentString ->
-                val file = java.io.File(path)
-                val trackedId = repository.trackFile(path, file.name, encoding)
+            val result = repository.readUriOrFile(path, encoding)
+            result.onSuccess { (contentString, displayName) ->
+                val trackedId = repository.trackFile(path, displayName, encoding)
                 undoRedoManager.clear()
 
                 _uiState.update {
                     it.copy(
-                        fileName = file.name,
+                        fileName = displayName,
                         absolutePath = path,
                         activeFileId = trackedId,
                         content = TextFieldValue(contentString),
                         isModified = false,
                         canUndo = false,
                         canRedo = false,
-                        statusMessage = "Opened ${file.name}"
+                        statusMessage = "Opened $displayName"
                     )
                 }
                 observeSnapshots(trackedId)
             }.onFailure { error ->
-                _uiState.update { it.copy(statusMessage = "Failed to open file: ${error.message}") }
+                handleOpenFileFailure(error)
             }
         }
     }
@@ -222,8 +225,24 @@ class EditorViewModel(
                 }
                 observeSnapshots(trackedId)
             }.onFailure { error ->
-                _uiState.update { it.copy(statusMessage = "Failed to open file: ${error.message}") }
+                handleOpenFileFailure(error)
             }
+        }
+    }
+
+    private fun handleOpenFileFailure(error: Throwable) {
+        val msg = error.message ?: ""
+        if (msg.contains("Permission Denial", ignoreCase = true) ||
+            msg.contains("URI Access Expired", ignoreCase = true) ||
+            msg.contains("requires that you obtain access", ignoreCase = true)) {
+            _uiState.update {
+                it.copy(
+                    shouldTriggerOpenPicker = true,
+                    statusMessage = "URI permission expired. Opening system file picker..."
+                )
+            }
+        } else {
+            _uiState.update { it.copy(statusMessage = "Failed to open file: ${error.message}") }
         }
     }
 
@@ -450,6 +469,26 @@ class EditorViewModel(
                 }
             }
         }
+    }
+
+    fun toggleSettings() {
+        _uiState.update { it.copy(isSettingsOpen = !it.isSettingsOpen) }
+    }
+
+    fun closeSettings() {
+        _uiState.update { it.copy(isSettingsOpen = false) }
+    }
+
+    fun setFontSize(sizeSp: Int) {
+        _uiState.update { it.copy(fontSizeSp = sizeSp) }
+    }
+
+    fun toggleLineNumbers() {
+        _uiState.update { it.copy(showLineNumbers = !it.showLineNumbers) }
+    }
+
+    fun toggleWordWrap() {
+        _uiState.update { it.copy(wordWrap = !it.wordWrap) }
     }
 
     fun toggleSearch() {
