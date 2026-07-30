@@ -354,4 +354,22 @@ class FileRepository(
             else -> SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(Date(timeMs))
         }
     }
+
+    // --- APP PREFERENCES PERSISTENCE ---
+
+    private val prefs by lazy {
+        context.getSharedPreferences("codeflow_settings_prefs", android.content.Context.MODE_PRIVATE)
+    }
+
+    fun getSavedWordWrap(): Boolean = prefs.getBoolean("word_wrap", false)
+    fun saveWordWrap(enabled: Boolean) = prefs.edit().putBoolean("word_wrap", enabled).apply()
+
+    fun getSavedFontSize(): Int = prefs.getInt("font_size_sp", 14)
+    fun saveFontSize(sizeSp: Int) = prefs.edit().putInt("font_size_sp", sizeSp).apply()
+
+    fun getSavedShowLineNumbers(): Boolean = prefs.getBoolean("show_line_numbers", true)
+    fun saveShowLineNumbers(enabled: Boolean) = prefs.edit().putBoolean("show_line_numbers", enabled).apply()
+
+    fun getSavedEncoding(): String = prefs.getString("encoding", "UTF-8") ?: "UTF-8"
+    fun saveEncoding(encoding: String) = prefs.edit().putString("encoding", encoding).apply()
 }

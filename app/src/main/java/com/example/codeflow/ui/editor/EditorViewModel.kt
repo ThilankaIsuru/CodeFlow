@@ -33,6 +33,21 @@ class EditorViewModel(
     private var snapshotsObserverJob: Job? = null
 
     init {
+        // Load saved app preferences on startup
+        val savedWordWrap = repository.getSavedWordWrap()
+        val savedFontSize = repository.getSavedFontSize()
+        val savedShowLineNumbers = repository.getSavedShowLineNumbers()
+        val savedEncoding = repository.getSavedEncoding()
+
+        _uiState.update {
+            it.copy(
+                wordWrap = savedWordWrap,
+                fontSizeSp = savedFontSize,
+                showLineNumbers = savedShowLineNumbers,
+                encoding = savedEncoding
+            )
+        }
+
         // 1. Observe Recent Files from Room DB
         viewModelScope.launch {
             repository.getRecentFiles().collect { recentItems ->
@@ -480,15 +495,20 @@ class EditorViewModel(
     }
 
     fun setFontSize(sizeSp: Int) {
+        repository.saveFontSize(sizeSp)
         _uiState.update { it.copy(fontSizeSp = sizeSp) }
     }
 
     fun toggleLineNumbers() {
-        _uiState.update { it.copy(showLineNumbers = !it.showLineNumbers) }
+        val next = !_uiState.value.showLineNumbers
+        repository.saveShowLineNumbers(next)
+        _uiState.update { it.copy(showLineNumbers = next) }
     }
 
     fun toggleWordWrap() {
-        _uiState.update { it.copy(wordWrap = !it.wordWrap) }
+        val next = !_uiState.value.wordWrap
+        repository.saveWordWrap(next)
+        _uiState.update { it.copy(wordWrap = next) }
     }
 
     fun toggleSearch() {
@@ -582,6 +602,7 @@ class EditorViewModel(
 
     fun toggleEncoding() {
         val newEncoding = if (_uiState.value.encoding == "UTF-8") "ASCII" else "UTF-8"
+        repository.saveEncoding(newEncoding)
         _uiState.update {
             it.copy(
                 encoding = newEncoding,
